@@ -26,6 +26,24 @@ configure do
   set :session_secret, SecureRandom.hex(32)
 end
 
+helpers do
+  def list_class(list)
+    'complete' if list_complete?(list)
+  end
+
+  def list_complete?(list)
+    todos_count(list).positive? && todos_remaining_count(list).zero?
+  end
+
+  def todos_count(list)
+    list[:todos].size
+  end
+
+  def todos_remaining_count(list)
+    list[:todos].reduce(0) { |acc, todo| todo[:completed] ? acc : acc + 1 }
+  end
+end
+
 before do
   session[:lists] ||= []
 end
@@ -63,41 +81,41 @@ post '/lists' do
 end
 
 # View a particular list
-get '/lists/:id' do
-  @list_id = params[:id].to_i
+get '/lists/:list_id' do
+  @list_id = params[:list_id].to_i
   @list = session[:lists][@list_id]
 
   erb :list, layout: :layout
 end
 
 # Edit an existing todo list
-get '/lists/:id/edit' do
-  id = params[:id].to_i
-  @list = session[:lists][id]
+get '/lists/:list_id/edit' do
+  list_id = params[:list_id].to_i
+  @list = session[:lists][list_id]
 
   erb :edit_list
 end
 
 # Update an existing todo list
-post '/lists/:id' do
+post '/lists/:list_id' do
   list_name = params[:list_name].strip
   error_message = error_for_list_name(list_name)
-  id = params[:id].to_i
-  @list = session[:lists][id]
+  list_id = params[:list_id].to_i
+  @list = session[:lists][list_id]
   if error_message
     session[:error] = error_message
     erb :edit_list, layout: :layout
   else
     @list[:name] = list_name
     session[:success] = 'The list has been updated.'
-    redirect "/lists/#{id}"
+    redirect "/lists/#{list_id}"
   end
 end
 
 # Delete a todo list
-post '/lists/:id/destroy' do
-  id = params[:id].to_i
-  session[:lists].delete_at(id)
+post '/lists/:list_id/destroy' do
+  list_id = params[:list_id].to_i
+  session[:lists].delete_at(list_id)
   session[:success] = 'The list has been deleted.'
 
   redirect '/lists'
@@ -128,6 +146,17 @@ post '/lists/:list_id/todos/:todo_id/destroy' do
 
   list[:todos].delete_at(todo_id)
   session[:success] = 'The todo has been deleted.'
+
+  redirect "/lists/#{list_id}"
+end
+
+# Mark all todos as complete for a list
+post '/lists/:list_id/complete_all' do
+  list_id = params[:list_id].to_i
+  list = session[:lists][list_id]
+
+  list[:todos].each { |todo| todo[:completed] = true }
+  session[:success] = 'All todos have been completed.'
 
   redirect "/lists/#{list_id}"
 end
