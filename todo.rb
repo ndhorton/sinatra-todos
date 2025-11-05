@@ -1,25 +1,10 @@
 # frozen_string_literal: false
 
 require 'sinatra'
-require 'sinatra/reloader'
+require 'sinatra/reloader' if development?
 require 'sinatra/content_for'
 require 'tilt/erubi'
 require 'securerandom'
-
-# Return an error message if the name is invalid. Return nil if name is valid.
-def error_for_list_name(name)
-  if !(1..100).cover? name.size
-    'List name must be between 1 and 100 characters.'
-  elsif session[:lists].any? { |list| list[:name] == name }
-    'List name must be unique.'
-  end
-end
-
-def error_for_todo(name)
-  return if (1..100).cover? name.size
-
-  'Todo must be between 1 and 100 characters.'
-end
 
 configure do
   enable :sessions
@@ -35,6 +20,20 @@ helpers do
     todos_count(list).positive? && todos_remaining_count(list).zero?
   end
 
+  def sort_lists(lists)
+    complete_lists, incomplete_lists = lists.partition { |list| list_complete? list }
+
+    incomplete_lists.each { |list| yield list, lists.index(list) }
+    complete_lists.each { |list| yield list, lists.index(list) }
+  end
+
+  def sort_todos(todos)
+    complete_todos, incomplete_todos = todos.partition { |todo| todo[:completed] }
+
+    incomplete_todos.each { |todo| yield todo, todos.index(todo) }
+    complete_todos.each { |todo| yield todo, todos.index(todo) }
+  end
+
   def todos_count(list)
     list[:todos].size
   end
@@ -42,6 +41,21 @@ helpers do
   def todos_remaining_count(list)
     list[:todos].reduce(0) { |acc, todo| todo[:completed] ? acc : acc + 1 }
   end
+end
+# Return an error message if the name is invalid. Return nil if name is valid.
+def error_for_list_name(name)
+  if !(1..100).cover? name.size
+    'List name must be between 1 and 100 characters.'
+  elsif session[:lists].any? { |list| list[:name] == name }
+    'List name must be unique.'
+  end
+end
+
+# Return an error message if the todo is invalid. Return nil if todo is valid.
+def error_for_todo(name)
+  return if (1..100).cover? name.size
+
+  'Todo must be between 1 and 100 characters.'
 end
 
 before do
